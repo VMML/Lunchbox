@@ -18,6 +18,8 @@ set(LUNCHBOX_PUBLIC_HEADERS
   debug.h
   dso.h
   file.h
+  floatMap.h
+  floatMap.ipp
   future.h
   futureFunction.h
   hash.h
@@ -35,6 +37,7 @@ set(LUNCHBOX_PUBLIC_HEADERS
   memoryMap.h
   monitor.h
   mpi.h
+  mtFloatMap.ipp
   mtQueue.h
   mtQueue.ipp
   nonCopyable.h
