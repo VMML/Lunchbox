@@ -43,7 +43,6 @@ set(LUNCHBOX_PUBLIC_HEADERS
   nonCopyable.h
   omp.h
   os.h
-  perfLogger.h
   perThread.h
   perThread.ipp
   perThreadRef.h
