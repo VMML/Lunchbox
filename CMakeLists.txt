@@ -22,7 +22,6 @@ set(DPUT_HOST "ppa:eilemann/equalizer-dev")
 
 set(LUNCHBOX_DESCRIPTION "Multi-threaded C++ toolbox library for all application developers creating high-performance multi-threaded programs.")
 set(COMMON_PROJECT_DOMAIN ch.eyescale)
-# set(ENABLE_CLANGCHECK_TESTS ON)
 
 include(Common)
 
@@ -35,25 +34,27 @@ if(LUNCHBOX_USE_SKV)
   git_subproject(skv https://github.com/eile/skv.git 2e7e137)
 endif()
 
-list(APPEND CPPCHECK_EXTRA_ARGS -DLB_GCC_4_1_OR_LATER=1)
 if(LUNCHBOX_BUILD_V2_API)
-  list(APPEND FIND_PACKAGES_DEFINES LUNCHBOX_USE_V2_API)
+  list(APPEND COMMON_PACKAGE_DEFINES LUNCHBOX_USE_V2_API)
 else()
-  list(APPEND FIND_PACKAGES_DEFINES LUNCHBOX_USE_V1_API)
+  list(APPEND COMMON_PACKAGE_DEFINES LUNCHBOX_USE_V1_API)
 endif()
 
-set(PROJECT_INCLUDE_NAME lunchbox)
-include(FindPackages)
+common_package(Boost REQUIRED COMPONENTS regex serialization filesystem system
+                                         thread unit_test_framework)
+common_package(hwloc)
+common_package(leveldb)
+if(LUNCHBOX_USE_MPI)
+  common_package(MPI)
+endif()
+common_package(OpenMP)
+common_package(Servus REQUIRED)
+common_package(skv)
+common_package_post()
+
 set(LUNCHBOX_DEPENDENT_LIBRARIES Boost)
 if(NOT LUNCHBOX_BUILD_V2_API)
   list(APPEND LUNCHBOX_DEPENDENT_LIBRARIES Servus)
-endif()
-
-if(OPENMP_FOUND)
-  set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} ${OpenMP_C_FLAGS}")
-  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${OpenMP_CXX_FLAGS}")
-  set(CMAKE_SHARED_LINKER_FLAGS
-    "${CMAKE_SHARED_LINKER_FLAGS} ${OpenMP_CXX_FLAGS}")
 endif()
 
 add_definitions("-DCMAKE_INSTALL_PREFIX=${CMAKE_INSTALL_PREFIX}")
@@ -65,6 +66,8 @@ add_subdirectory(lunchbox)
 add_subdirectory(tests)
 add_subdirectory(doc)
 
+set(DOXYGEN_MAINPAGE_MD README.md)
+set(DOXYGEN_EXTRA_INPUT ${PROJECT_SOURCE_DIR}/README.md)
 include(DoxygenRule) # must be after all targets
 include(LunchboxCPack)
 include(PackageConfig)

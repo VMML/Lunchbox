@@ -1,13 +1,13 @@
 # Copyright (c) 2010 Daniel Pfeifer <daniel@pfeifer-mail.de>
 #               2011-2013 Stefan Eilemann <eile@eyescale.ch>
 
-find_package(Threads REQUIRED)
+find_package(Threads REQUIRED QUIET)
 
 set(PTHREAD_LIBRARIES pthread)
 
 if(CMAKE_USE_PTHREADS_INIT)
   return()
-endif(CMAKE_USE_PTHREADS_INIT)
+endif()
 
 IF(NOT WIN32)
   message(FATAL_ERROR "Lunchbox requires pthreads.")
@@ -53,7 +53,7 @@ add_library(pthread SHARED
   )
 
 set_target_properties(pthread PROPERTIES COMPILE_DEFINITIONS PTW32_BUILD=1
-  FOLDER "Libraries")
+  FOLDER "${PROJECT_NAME}")
 target_link_libraries(pthread ws2_32)
 
 install(TARGETS pthread

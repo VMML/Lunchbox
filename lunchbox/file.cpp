@@ -134,7 +134,38 @@ std::string getExecutablePath()
     const ssize_t count = readlink( "/proc/self/exe", result, PATH_MAX );
     const std::string execPath( result, count > 0 ? count : 0 );
 #endif
+
     const boost::filesystem::path path( execPath );
+#ifdef __APPLE__
+    if( boost::algorithm::ends_with( path.parent_path().string(),
+                                     "Contents/MacOS" ))
+    {
+        return
+          path.parent_path().parent_path().parent_path().parent_path().string();
+    }
+#endif
+    return path.parent_path().string();
+}
+
+std::string getRootPath()
+{
+    const std::string& exePath = getExecutablePath();
+    if( exePath.empty( ))
+        return exePath;
+
+    const boost::filesystem::path path( exePath );
+#ifdef _MSC_VER
+    const Strings buildTypes { "debug", "relwithdebinfo", "release",
+                               "minsizerel" };
+    std::string buildType( path.stem().string( ));
+    std::transform( buildType.begin(), buildType.end(), buildType.begin(),
+                    ::tolower );
+    if( std::find( buildTypes.begin(), buildTypes.end(),
+                   buildType ) != buildTypes.end( ))
+    {
+        return path.parent_path().parent_path().string();
+    }
+#endif
     return path.parent_path().string();
 }
 
@@ -171,24 +202,27 @@ Strings getLibraryPaths()
         paths.push_back( appPath );
 
 #ifdef _MSC_VER
-    const char* env = ::getenv( "PATH" );
-    boost::char_separator< char > separator(";");
     paths.push_back( STDSTRING( CMAKE_INSTALL_PREFIX ) + "/bin" );
+    const char* env = ::getenv( "PATH" );
 #elif __APPLE__
-    const char* env = ::getenv( "LD_LIBRARY_PATH" );
-    boost::char_separator< char > separator(":");
     paths.push_back( STDSTRING( CMAKE_INSTALL_PREFIX ) + "/lib" );
-#else
     const char* env = ::getenv( "DYLD_LIBRARY_PATH" );
-    boost::char_separator< char > separator(":");
+#else
     paths.push_back( STDSTRING( CMAKE_INSTALL_PREFIX ) + "/lib" );
+    const char* env = ::getenv( "LD_LIBRARY_PATH" );
 #endif
 
     if( !env )
         return paths;
 
+    const std::string envString( env );
+#ifdef _MSC_VER
+    boost::char_separator< char > separator(";");
+#else
+    boost::char_separator< char > separator(":");
+#endif
     const boost::tokenizer< boost::char_separator< char > >
-        tokens( std::string( env ), separator );
+        tokens( envString, separator );
     BOOST_FOREACH( const std::string& token, tokens )
         paths.push_back( token );
 
