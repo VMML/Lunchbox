@@ -30,6 +30,16 @@ PluginFactory< PluginT, InitDataT >::getInstance()
 }
 
 template< typename PluginT, typename InitDataT >
+PluginFactory< PluginT, InitDataT >::~PluginFactory()
+{
+    // Do not do this: dtor is called in atexit(), at which point the other DSOs
+    // might be unloaded already, causing dlclose to trip. It's pointless
+    // anyways, we're in atexit, so the OS will dispose the DSOs for us anyways.
+    // Let's call this a static deinitializer fiasco.
+    //   deregisterAll(); // unload the DSO libraries
+}
+
+template< typename PluginT, typename InitDataT >
 PluginT* PluginFactory< PluginT, InitDataT >::create( const InitDataT& initData )
 {
     BOOST_FOREACH( PluginHolder& plugin, _plugins )

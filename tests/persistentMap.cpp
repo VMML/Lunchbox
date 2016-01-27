@@ -20,6 +20,7 @@
 #include <lunchbox/clock.h>
 #include <lunchbox/os.h>
 #include <lunchbox/persistentMap.h>
+#include <lunchbox/rng.h>
 #ifdef LUNCHBOX_USE_LEVELDB
 #  include <leveldb/db.h>
 #endif
@@ -34,6 +35,7 @@ using lunchbox::PersistentMap;
 const int ints[] = { 17, 53, 42, 65535, 32768 };
 const size_t numInts = sizeof( ints ) / sizeof( int );
 const int64_t loopTime = 1000;
+bool perfTest = false;
 
 template< class T > void insertVector( PersistentMap& map )
 {
@@ -151,96 +153,88 @@ void setup( const std::string& uri )
     read( map );
 }
 
-void benchmark( const std::string& uri, const uint64_t queueDepth )
+void benchmark( const std::string& uri, const uint64_t queueDepth,
+                const size_t valueSize )
 {
+    static std::string lastURI;
+    if( uri != lastURI )
+    {
+        std::cout << uri << std::endl;
+        lastURI = uri;
+    }
+
     PersistentMap map( uri );
     map.setQueueDepth( queueDepth );
 
-    // Prepare keys
+    // Prepare keys and value
     lunchbox::Strings keys;
     keys.resize( queueDepth + 1 );
     for( uint64_t i = 0; i <= queueDepth; ++i )
         keys[i].assign( reinterpret_cast< char* >( &i ), 8 );
+
+    std::string value( valueSize, '*' );
+    lunchbox::RNG rng;
+    for( size_t i = 0; i < valueSize; ++i )
+        value[i] = rng.get<char>();
 
     // write performance
     lunchbox::Clock clock;
     uint64_t i = 0;
     while( clock.getTime64() < loopTime )
     {
-        std::string& key = keys[ i % (queueDepth+1) ];
-        *reinterpret_cast< uint64_t* >( &key[0] ) = i;
-        map.insert( key, key );
+        map.insert( keys[ i % (queueDepth+1) ], value );
         ++i;
     }
     map.flush();
-    const float insertTime = clock.getTimef();
+    const float writeTime = clock.getTimef() / 1000.f;
     const uint64_t wOps = i;
     TEST( i > queueDepth );
 
     // read performance
-    std::string key;
-    key.assign( reinterpret_cast< char* >( &i ), 8 );
-
     clock.reset();
     if( queueDepth == 0 ) // sync read
     {
         for( i = 0; i < wOps && clock.getTime64() < loopTime; ++i ) // read keys
-        {
-            *reinterpret_cast< uint64_t* >( &key[0] ) = i - queueDepth;
-            map[ key ];
-        }
+            map[ keys[ i % (queueDepth+1) ]];
     }
     else // fetch + async read
     {
         for( i = 0; i < queueDepth; ++i ) // prefetch queueDepth keys
-        {
-            *reinterpret_cast< uint64_t* >( &key[0] ) = i;
-            TEST( map.fetch( key, 8 ) );
-        }
+            TEST( map.fetch( keys[ i % (queueDepth+1) ], valueSize ) );
 
         for( ; i < wOps && clock.getTime64() < loopTime; ++i ) // read keys
         {
-            *reinterpret_cast< uint64_t* >( &key[0] ) = i - queueDepth;
-            map[ key ];
-
-            *reinterpret_cast< uint64_t* >( &key[0] ) = i;
-            TEST( map.fetch( key, 8 ));
+            map[ keys[ (i - queueDepth) % (queueDepth+1) ] ];
+            TEST( map.fetch( keys[ i % (queueDepth+1) ], valueSize ));
         }
 
         for( uint64_t j = i - queueDepth; j <= i; ++j ) // drain fetched keys
+            map[ keys[ j % (queueDepth+1) ]];
+    }
+
+    const float readTime = clock.getTimef() / 1000.f;
+    const size_t rOps = i;
+
+    std::cout << boost::format( "%6i, %6i, %9.2f, %9.2f, %9.2f, %9.2f")
+        // cppcheck-suppress zerodivcond
+        % queueDepth % valueSize % (rOps/readTime) % (wOps/writeTime)
+        % (rOps/1024.f/1024.f*valueSize/readTime)
+        % (wOps/1024.f/1024.f*valueSize/writeTime) << std::endl;
+
+
+    if( !perfTest )
+    {
+        // check contents of store (not all to save time on bigger tests)
+        for( uint64_t j = 0; j < wOps && clock.getTime64() < loopTime; ++j )
         {
-            *reinterpret_cast< uint64_t* >( &key[0] ) = j;
-            map[ key ];
+            const std::string& val = map[ keys[ j % (queueDepth+1) ]];
+            TESTINFO( val.size() == valueSize,
+                      val.size() << " != " << valueSize );
+            TEST( val == value );
         }
     }
 
-    const float readTime = clock.getTimef();
-    const size_t rOps = i;
-
-    // fetch performance
-    clock.reset();
-    for( i = 0; i < wOps && clock.getTime64() < loopTime && i < LB_128KB; ++i )
-    {
-        *reinterpret_cast< uint64_t* >( &key[0] ) = i;
-        TEST( map.fetch( key, 8 ) );
-    }
-    const float fetchTime = clock.getTimef();
-    const size_t fOps = i;
-
-    std::cout << boost::format( "%7.2f, %7.2f, %7.2f, %6i")
-        // cppcheck-suppress zerodivcond
-        % queueDepth % (rOps/insertTime) % (wOps/readTime) % (fOps/fetchTime)
-              << std::endl;
-
-    // check contents of store (not all to save time on bigger tests)
-    for( uint64_t j = 0; j < wOps && clock.getTime64() < loopTime; ++j )
-    {
-        *reinterpret_cast< uint64_t* >( &key[0] ) = j;
-        TESTINFO( map.get< uint64_t >( key ) == j,
-                  j << " = " << map.get< uint64_t >( key ));
-    }
-
-    // try to make sure there's nothing outstanding if we messed up i our test.
+    // try to make sure there's nothing outstanding if we messed up in our test
     map.flush();
 }
 
@@ -274,11 +268,11 @@ void testLevelDBFailures()
 
 int main( int, char* argv[] )
 {
-    const bool perfTest LB_UNUSED
-        = std::string( argv[0] ).find( "perf_" ) != std::string::npos;
+    perfTest = std::string( argv[0] ).find( "perf-" ) != std::string::npos;
     if( perfTest )
-        std::cout << "  async,    read,   write,   fetch" << std::endl;
-
+        std::cout
+            << " async,  value,   reads/s,  writes/s, read MB/s, write MB/s"
+            << std::endl;
     try
     {
 #ifdef LUNCHBOX_USE_LEVELDB
@@ -289,7 +283,8 @@ int main( int, char* argv[] )
         read( "leveldb://" );
         read( "leveldb://persistentMap2.leveldb" );
         if( perfTest )
-            benchmark( "leveldb://", 0 );
+            for( size_t i=1; i <= 65536; i = i<<2 )
+                benchmark( "leveldb://", 0, i );
 #endif
 #ifdef LUNCHBOX_USE_SKV
         FxLogger_Init( argv[0] );
@@ -297,9 +292,11 @@ int main( int, char* argv[] )
         read( "skv://" );
         if( perfTest )
         {
-            benchmark( "skv://", 0 );
-            for( size_t i=1; i < 100000; i = i<<1 )
-                benchmark( "skv://", i );
+            benchmark( "skv://", 0, 64 );
+            for( size_t i=1; i <= 65536; i = i<<1 )
+                benchmark( "skv://", i, 64 );
+            for( size_t i=1; i <= 65536; i = i<<2 )
+                benchmark( "skv://", 65536, i );
         }
 #endif
     }

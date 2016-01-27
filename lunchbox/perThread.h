@@ -19,6 +19,7 @@
 #define LUNCHBOX_PERTHREAD_H
 
 #include <lunchbox/compiler.h> // deprecated macro
+#include <lunchbox/debug.h> // LBASSERTINFO
 #include <lunchbox/tls.h> // member
 
 namespace lunchbox
@@ -105,7 +106,7 @@ public:
 
 private:
     TLS tls_;
-} LB_DEPRECATED;
+}; // LB_DEPRECATED;
 
 }
 

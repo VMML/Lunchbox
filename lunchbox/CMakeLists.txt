@@ -1,15 +1,11 @@
 
-# Copyright (c) 2012-2014 Stefan Eilemann <eile@eyescale.ch>
+# Copyright (c) 2012-2015 Stefan Eilemann <eile@eyescale.ch>
 
 include(files.cmake)
 
-list(APPEND LUNCHBOX_LINK_LIBRARIES PUBLIC ${Boost_LIBRARIES})
-
-if(LUNCHBOX_BUILD_V2_API)
-  list(APPEND LUNCHBOX_LINK_LIBRARIES PRIVATE Servus ${PTHREAD_LIBRARIES})
-else()
-  list(APPEND LUNCHBOX_LINK_LIBRARIES Servus PRIVATE ${PTHREAD_LIBRARIES})
-endif()
+set(LUNCHBOX_PUBLIC_INCLUDE_DIRECTORIES ${Boost_INCLUDE_DIRS})
+list(APPEND LUNCHBOX_LINK_LIBRARIES PUBLIC ${Boost_LIBRARIES} Servus
+                                    PRIVATE ${PTHREAD_LIBRARIES})
 
 if(WIN32)
   list(APPEND LUNCHBOX_LINK_LIBRARIES ws2_32 mswsock imagehlp)
@@ -33,16 +29,12 @@ if(LEVELDB_FOUND)
   list(APPEND LUNCHBOX_LINK_LIBRARIES ${LEVELDB_LIBRARIES})
 endif()
 if(SKV_FOUND)
-  list(APPEND LUNCHBOX_LINK_LIBRARIES ${SKV_CLIENT_LIBRARY}
-    ${SKV_COMMON_LIBRARY} ${IT_API_LIBRARY} ${FXLOGGER_LIBRARY})
-  if(SKV_OFED_FOUND)
-    list(APPEND LUNCHBOX_LINK_LIBRARIES ${SKV_OFED_LIBRARIES}
-      ${PTHREAD_LIBRARIES})
-  endif()
+  list(APPEND LUNCHBOX_LINK_LIBRARIES skv_client fxlogger)
 endif()
 
 common_library(Lunchbox)
 
+target_include_directories(Lunchbox PUBLIC ${Boost_INCLUDE_DIRS})
 source_group(\\ FILES CMakeLists.txt)
 source_group(lunchbox FILES ${LUNCHBOX_PUBLIC_HEADERS} ${LUNCHBOX_HEADERS}
   ${LUNCHBOX_SOURCES})
