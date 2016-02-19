@@ -151,7 +151,7 @@ int main( int argc, char **argv )
     maxDist = .25f;
     map.setMaxDistance(maxDist);
     std::cout << "maxDist: " << maxDist << std::endl;
-    map.setMaxKey( 1.f );
+    map.setKeyInterval( 0.f, 1.f );
     map.tryRemove( nItems, .125f, resultVec );
     for( size_t i = 0; i < resultVec.size(); ++i )
     {
@@ -161,10 +161,10 @@ int main( int argc, char **argv )
 
     fillMap2();
     resultVec.clear();
-    maxDist = .25f;
+    maxDist = 0.3251f;
     map.setMaxDistance(maxDist);
     std::cout << "maxDist: " << maxDist << std::endl;
-    map.setMaxKey( 1.f );
+    map.setKeyInterval( 0.f, 1.f );
     map.tryRemove( nItems, .8f, resultVec );
     for( size_t i = 0; i < resultVec.size(); ++i )
     {

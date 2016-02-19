@@ -1,5 +1,6 @@
 
-/* Copyright (c) 2015, David Steiner <steiner@ifi.uzh.ch>
+/* Copyright (c) 2015-2016, David Steiner <steiner@ifi.uzh.ch>
+ *               2016,      Enrique G. Paredes <egparedes@ifi.uzh.ch>
  *
  * This library is free software; you can redistribute it and/or modify it under
  * the terms of the GNU Lesser General Public License version 2.1 as published
@@ -32,9 +33,6 @@ namespace lunchbox
     /**
      * A thread-safe map with a blocking read access.
      *
-     * S is deprecated, and defines the initial maximum capacity of the
-     * Map<K, T>. When the capacity is reached, pushing new values blocks until
-     * items have been consumed.
      */
     template< typename K, typename T > class FloatMap
     {
@@ -97,7 +95,7 @@ namespace lunchbox
         /** Insert a new element into the queue. @version 1.x */
         void insert( const K key, const T& value );
 
-        void setMaxKey( const K key );
+        void setKeyInterval( const K minKey, const K maxKey );
 
         void setMaxDistance( const K dist );
     
@@ -119,6 +117,7 @@ namespace lunchbox
         MapType _map;
         K _maxDistLeft;
         K _maxDistRight;
+        K _minKey;
         K _maxKey;
 #ifdef LB_MT_FLOAT_MAP
         mutable Condition _cond;
@@ -130,23 +129,33 @@ typename FloatMap< K, T >::MapType::iterator FloatMap< K, T >::_findTarget( cons
 {
     K currDist = std::numeric_limits< K >::max();
     K prevDist = std::numeric_limits< K >::max();
-    typename MapType::iterator previous = _map.end();
     typename MapType::iterator current = _map.lower_bound( key );
+    typename MapType::iterator previous = current;
     if( current != _map.begin( ))
     {
-        previous = current;
         --previous;
-
-        prevDist = std::abs( key - previous->first );
+        prevDist = key - previous->first;
     }
+    else // wrap around
+    {
+        // Get forward iterator to last valid element
+        previous = --(_map.rbegin().base());
+        prevDist = ( key - _minKey ) + ( _maxKey - previous->first );
+    }
+
     if( current != _map.end( ))
     {
-        currDist = std::abs( key - current->first );
+        currDist = current->first - key;
     }
-    
+    else // wrap around
+    {
+        current = _map.begin();
+        currDist = ( _maxKey - key ) + ( current->first - _minKey );
+    }
+
     typename MapType::iterator target = _map.end();
-    bool validPrev = ( prevDist <= _maxDistLeft && previous != _map.end( ));
-    bool validCur = ( currDist <= _maxDistRight && current != _map.end( ));
+    bool validPrev = ( prevDist <= _maxDistLeft );
+    bool validCur = ( currDist <= _maxDistRight );
     if( validPrev && (!validCur || prevDist < currDist ))
     {
         target = previous;
@@ -164,29 +173,6 @@ template< typename K, typename T >
 bool FloatMap< K, T >::_tryRemove( const K key, T& result )
 {
     typename MapType::iterator target = _findTarget( key );
-    K pos = target->first;
-    K dist = std::abs( key - pos );
-
-    if( key > _maxKey / 2 )
-    {
-        typename MapType::iterator targetStart = _findTarget( 0 );
-        K posStart = targetStart->first;
-        K distStart = std::abs( _maxKey - key - posStart );
-        if( distStart < dist )
-        {
-            target = targetStart;
-        }
-    }
-    else
-    {
-        typename MapType::iterator targetEnd = _findTarget( _maxKey );
-        K posEnd = targetEnd->first;
-        K distEnd = std::abs( _maxKey - posEnd - key );
-        if( distEnd < dist )
-        {
-            target = targetEnd;
-        }
-    }
 
     if( target != _map.end( ))
     {

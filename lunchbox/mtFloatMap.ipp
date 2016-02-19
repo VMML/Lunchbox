@@ -22,6 +22,7 @@ template< typename K, typename T >
 FloatMap< K, T >::FloatMap()
     : _maxDistLeft( std::numeric_limits< K >::max( ))
     , _maxDistRight( std::numeric_limits< K >::max( ))
+    , _minKey( std::numeric_limits< K >::min( ))
     , _maxKey( std::numeric_limits< K >::max( ))
 {}
 
@@ -116,9 +117,10 @@ void FloatMap< K, T >::insert( const K key, const T& value )
 }
 
 template< typename K, typename T >
-void FloatMap< K, T >::setMaxKey( const K key )
+void FloatMap< K, T >::setKeyInterval( const K minKey, const K maxKey )
 {
-    _maxKey = key;
+    _minKey = minKey;
+    _maxKey = maxKey;
 }
 
 template< typename K, typename T >
